@@ -19,29 +19,30 @@
  * Yul interpreter.
  */
 
-#include <test/tools/yulInterpreter/Interpreter.h>
+#include <exception>
 #include <test/tools/yulInterpreter/Inspector.h>
+#include <test/tools/yulInterpreter/Interpreter.h>
 
-#include <libyul/AsmAnalysisInfo.h>
 #include <libyul/AsmAnalysis.h>
+#include <libyul/AsmAnalysisInfo.h>
 #include <libyul/Dialect.h>
-#include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/YulStack.h>
+#include <libyul/backends/evm/EVMDialect.h>
 
 #include <liblangutil/DebugInfoSelection.h>
-#include <liblangutil/Exceptions.h>
 #include <liblangutil/EVMVersion.h>
+#include <liblangutil/Exceptions.h>
 #include <liblangutil/SourceReferenceFormatter.h>
 
-#include <libsolutil/CommonIO.h>
 #include <libsolutil/CommonData.h>
+#include <libsolutil/CommonIO.h>
 #include <libsolutil/Exceptions.h>
 
 #include <boost/program_options.hpp>
 
-#include <string>
-#include <memory>
 #include <iostream>
+#include <memory>
+#include <string>
 
 using namespace std;
 using namespace solidity;
@@ -62,8 +63,7 @@ pair<shared_ptr<Block>, shared_ptr<AsmAnalysisInfo>> parse(string const& _source
 		nullopt,
 		YulStack::Language::StrictAssembly,
 		solidity::frontend::OptimiserSettings::none(),
-		DebugInfoSelection::Default()
-	);
+		DebugInfoSelection::Default());
 	if (stack.parseAndAnalyze("--INPUT--", _source))
 	{
 		yulAssert(stack.errors().empty(), "Parsed successfully but had errors.");
@@ -76,7 +76,7 @@ pair<shared_ptr<Block>, shared_ptr<AsmAnalysisInfo>> parse(string const& _source
 	}
 }
 
-void interpret(string const& _source, bool _inspect, bool _disableExternalCalls)
+void interpret(string const& _source, bool _inspect, bool _disableExternalCalls, bytes calldata = bytes())
 {
 	shared_ptr<Block> ast;
 	shared_ptr<AsmAnalysisInfo> analysisInfo;
@@ -85,13 +85,20 @@ void interpret(string const& _source, bool _inspect, bool _disableExternalCalls)
 		return;
 
 	InterpreterState state;
+	state.calldata = calldata;
 	state.maxTraceSize = 10000;
 	try
 	{
 		Dialect const& dialect(EVMDialect::strictAssemblyForEVMObjects(langutil::EVMVersion{}));
 
 		if (_inspect)
-			InspectedInterpreter::run(std::make_shared<Inspector>(_source, state), state, dialect, *ast, _disableExternalCalls, /*disableMemoryTracing=*/false);
+			InspectedInterpreter::
+				run(std::make_shared<Inspector>(_source, state),
+					state,
+					dialect,
+					*ast,
+					_disableExternalCalls,
+					/*disableMemoryTracing=*/false);
 
 		else
 			Interpreter::run(state, dialect, *ast, _disableExternalCalls, /*disableMemoryTracing=*/false);
@@ -115,11 +122,9 @@ Reads a single source from stdin, runs it and prints a trace of all side-effects
 Allowed options)",
 		po::options_description::m_default_line_length,
 		po::options_description::m_default_line_length - 23);
-	options.add_options()
-		("help", "Show this help screen.")
-		("enable-external-calls", "Enable external calls")
-		("interactive", "Run interactive")
-		("input-file", po::value<vector<string>>(), "input file");
+	options.add_options()("help", "Show this help screen.")("enable-external-calls", "Enable external calls")(
+		"interactive", "Run interactive")("input-file", po::value<vector<string>>(), "input file")(
+		"calldata", po::value<string>(), "Calldata to be passed to the contract function");
 	po::positional_options_description filesPositions;
 	filesPositions.add("input-file", -1);
 
@@ -162,7 +167,22 @@ Allowed options)",
 		else
 			input = readUntilEnd(cin);
 
-		interpret(input, arguments.count("interactive"), !arguments.count("enable-external-calls"));
+		bytes calldata_bytes;
+		if (arguments.count("calldata"))
+		{
+			string calldata = arguments["calldata"].as<string>();
+			try
+			{
+				calldata_bytes = fromHex(calldata);
+			}
+			catch (std::exception const&)
+			{
+				cerr << "Invalid calldata: " << calldata << endl;
+				return 1;
+			}
+		}
+
+		interpret(input, arguments.count("interactive"), !arguments.count("enable-external-calls"), calldata_bytes);
 	}
 
 	return 0;
