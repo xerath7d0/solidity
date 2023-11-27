@@ -189,9 +189,9 @@ u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u2
 		return u256(keccak256(m_state.readMemory(offset, size)));
 	}
 	case Instruction::ADDRESS:
-		return h256(m_state.address, h256::AlignRight);
+		return h256(m_state.call_context.address, h256::AlignRight);
 	case Instruction::BALANCE:
-		if (arg[0] == h256(m_state.address, h256::AlignRight))
+		if (arg[0] == h256(m_state.call_context.address, h256::AlignRight))
 			return m_state.selfbalance;
 		else
 			return m_state.balance;
@@ -200,16 +200,17 @@ u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u2
 	case Instruction::ORIGIN:
 		return h256(m_state.origin, h256::AlignRight);
 	case Instruction::CALLER:
-		return h256(m_state.caller, h256::AlignRight);
+		return h256(m_state.call_context.caller, h256::AlignRight);
 	case Instruction::CALLVALUE:
-		return m_state.callvalue;
+		return m_state.call_context.callvalue;
 	case Instruction::CALLDATALOAD:
-		return readZeroExtended(m_state.calldata, arg[0]);
+		return readZeroExtended(m_state.call_context.calldata, arg[0]);
 	case Instruction::CALLDATASIZE:
-		return m_state.calldata.size();
+		return m_state.call_context.calldata.size();
 	case Instruction::CALLDATACOPY:
 		if (accessMemory(arg[0], arg[2]))
-			copyZeroExtended(m_state.memory, m_state.calldata, size_t(arg[0]), size_t(arg[1]), size_t(arg[2]));
+			copyZeroExtended(
+				m_state.memory, m_state.call_context.calldata, size_t(arg[0]), size_t(arg[1]), size_t(arg[2]));
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::CODESIZE:
@@ -236,10 +237,11 @@ u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u2
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::RETURNDATASIZE:
-		return m_state.returndata.size();
+		return m_state.call_context.returndata.size();
 	case Instruction::RETURNDATACOPY:
 		if (accessMemory(arg[0], arg[2]))
-			copyZeroExtended(m_state.memory, m_state.returndata, size_t(arg[0]), size_t(arg[1]), size_t(arg[2]));
+			copyZeroExtended(
+				m_state.memory, m_state.call_context.returndata, size_t(arg[0]), size_t(arg[1]), size_t(arg[2]));
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::BLOCKHASH:
@@ -323,7 +325,7 @@ u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u2
 		logTrace(_instruction, arg);
 		// Randomly fail based on the called address if it isn't a call to self.
 		// Used for fuzzing.
-		return ((arg[0] > 0) && (arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))) ? 1 : 0;
+		return ((arg[0] > 0) && (arg[1] == util::h160::Arith(m_state.call_context.address) || (arg[1] & 1))) ? 1 : 0;
 	case Instruction::DELEGATECALL:
 	case Instruction::STATICCALL:
 		accessMemory(arg[2], arg[3]);
@@ -331,13 +333,13 @@ u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u2
 		logTrace(_instruction, arg);
 		// Randomly fail based on the called address if it isn't a call to self.
 		// Used for fuzzing.
-		return ((arg[0] > 0) && (arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))) ? 1 : 0;
+		return ((arg[0] > 0) && (arg[1] == util::h160::Arith(m_state.call_context.address) || (arg[1] & 1))) ? 1 : 0;
 	case Instruction::RETURN:
 	{
-		m_state.returndata = {};
+		m_state.call_context.returndata = {};
 		if (accessMemory(arg[0], arg[1]))
-			m_state.returndata = m_state.readMemory(arg[0], arg[1]);
-		logTrace(_instruction, arg, m_state.returndata);
+			m_state.call_context.returndata = m_state.readMemory(arg[0], arg[1]);
+		logTrace(_instruction, arg, m_state.call_context.returndata);
 		BOOST_THROW_EXCEPTION(ExplicitlyTerminatedWithReturn());
 	}
 	case Instruction::REVERT:

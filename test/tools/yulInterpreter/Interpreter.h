@@ -73,6 +73,18 @@ enum class ControlFlowState
 	Leave
 };
 
+enum class CallScheme
+{
+	// `CALL`
+	Call,
+	// `CALLCODE`
+	CallCode,
+	// `DELEGATECALL`
+	DelegateCall,
+	// `STATICCALL`
+	StaticCall,
+};
+
 struct BlockchainState
 {
 	util::h160 coinbase = util::h160("0x0000000000000000000000000000000077777777");
@@ -84,21 +96,38 @@ struct BlockchainState
 	u256 base_fee = 0x07; // The minimum value of basefee: 7 wei.
 };
 
+struct CallContext
+{
+	// Execution address
+	util::h160 address;
+	// Caller address
+	util::h160 caller;
+	// Call value
+	u256 callvalue;
+	// The address the contract code was loaded from(i.e. in 'DELEGATECALL' this
+	// is different with 'address')
+	util::h160 code_address;
+	// Call data
+	bytes calldata;
+	// Return data
+	bytes returndata;
+	// Gas forwarded to this call
+	u256 gas;
+	// The scheme used for this call
+	CallScheme scheme;
+};
+
 struct InterpreterState
 {
 	BlockchainState blockchain_state;
-	bytes calldata;
-	bytes returndata;
+	CallContext call_context;
 	std::map<u256, uint8_t> memory;
 	/// This is different than memory.size() because we ignore gas.
 	u256 msize;
 	std::map<util::h256, util::h256> storage;
-	util::h160 address = util::h160("0x0000000000000000000000000000000011111111");
 	u256 balance = 0x22222222;
 	u256 selfbalance = 0x22223333;
 	util::h160 origin = util::h160("0x0000000000000000000000000000000033333333");
-	util::h160 caller = util::h160("0x0000000000000000000000000000000044444444");
-	u256 callvalue = 0x55555555;
 	/// Deployed code
 	bytes code = util::asBytes("codecodecodecodecode");
 	u256 gasprice = 0x66666666;
@@ -187,7 +216,7 @@ public:
 	void operator()(Leave const&) override;
 	void operator()(Block const& _block) override;
 
-	bytes returnData() const { return m_state.returndata; }
+	bytes returnData() const { return m_state.call_context.returndata; }
 	std::vector<std::string> const& trace() const { return m_state.trace; }
 
 	u256 valueOfVariable(YulString _name) const { return m_variables.at(_name); }

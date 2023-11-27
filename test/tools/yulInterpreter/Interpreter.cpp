@@ -71,18 +71,19 @@ void InterpreterState::dumpTraceAndState(ostream& _out, bool _disableMemoryTrace
 	_out << "Storage dump:" << endl;
 	dumpStorage(_out);
 
-	if (!calldata.empty())
+	if (!call_context.calldata.empty())
 	{
 		_out << "Calldata dump:";
 
-		for (size_t offset = 0; offset < calldata.size(); ++offset)
-			if (calldata[offset] != 0)
+		for (size_t offset = 0; offset < call_context.calldata.size(); ++offset)
+			if (call_context.calldata[offset] != 0)
 			{
 				if (offset % 32 == 0)
 					_out << std::endl
 						 << "  " << std::uppercase << std::hex << std::setfill(' ') << std::setw(4) << offset << ": ";
 
-				_out << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(calldata[offset]);
+				_out << std::hex << std::setw(2) << std::setfill('0')
+					 << static_cast<int>(call_context.calldata[offset]);
 			}
 
 		_out << endl;
@@ -407,13 +408,13 @@ void ExpressionEvaluator::runExternalCall(evmasm::Instruction _instruction)
 		yulAssert(false);
 
 	// Don't execute external call if it isn't our own address
-	if (values()[1] != util::h160::Arith(m_state.address))
+	if (values()[1] != util::h160::Arith(m_state.call_context.address))
 		return;
 
 	Scope tmpScope;
 	InterpreterState tmpState;
-	tmpState.calldata = m_state.readMemory(memInOffset, memInSize);
-	tmpState.callvalue = callvalue;
+	tmpState.call_context.calldata = m_state.readMemory(memInOffset, memInSize);
+	tmpState.call_context.callvalue = callvalue;
 	tmpState.numInstance = m_state.numInstance + 1;
 
 	yulAssert(tmpState.numInstance < 1024, "Detected more than 1024 recursive calls, aborting...");
@@ -455,6 +456,6 @@ void ExpressionEvaluator::runExternalCall(evmasm::Instruction _instruction)
 			memOutOffset.convert_to<size_t>(),
 			0,
 			memOutSize.convert_to<size_t>());
-		m_state.returndata = newInterpreter->returnData();
+		m_state.call_context.returndata = newInterpreter->returnData();
 	}
 }

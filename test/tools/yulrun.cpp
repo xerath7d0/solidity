@@ -85,9 +85,9 @@ void interpret(string const& _source, bool _inspect, bool _disableExternalCalls,
 		return;
 
 	InterpreterState state;
-	state.calldata = calldata;
+	state.call_context.calldata = calldata;
 	state.maxTraceSize = 10000;
-	state.callvalue = 0;
+	state.call_context.callvalue = 0;
 	try
 	{
 		Dialect const& dialect(EVMDialect::strictAssemblyForEVMObjects(langutil::EVMVersion{}));
