@@ -61,10 +61,12 @@ void InterpreterState::dumpTraceAndState(ostream& _out, bool _disableMemoryTrace
 		_out << "Memory dump:\n";
 		map<u256, u256> words;
 		for (auto const& [offset, value]: memory)
-			words[(offset / 0x20) * 0x20] |= u256(uint32_t(value)) << (256 - 8 - 8 * static_cast<size_t>(offset % 0x20));
+			words[(offset / 0x20) * 0x20] |= u256(uint32_t(value))
+											 << (256 - 8 - 8 * static_cast<size_t>(offset % 0x20));
 		for (auto const& [offset, value]: words)
 			if (value != 0)
-				_out << "  " << std::uppercase << std::hex << std::setw(4) << offset << ": " << h256(value).hex() << endl;
+				_out << "  " << std::uppercase << std::hex << std::setw(4) << offset << ": " << h256(value).hex()
+					 << endl;
 	}
 	_out << "Storage dump:" << endl;
 	dumpStorage(_out);
@@ -77,21 +79,10 @@ void InterpreterState::dumpTraceAndState(ostream& _out, bool _disableMemoryTrace
 			if (calldata[offset] != 0)
 			{
 				if (offset % 32 == 0)
-					_out <<
-						std::endl <<
-						"  " <<
-						std::uppercase <<
-						std::hex <<
-						std::setfill(' ') <<
-						std::setw(4) <<
-						offset <<
-						": ";
+					_out << std::endl
+						 << "  " << std::uppercase << std::hex << std::setfill(' ') << std::setw(4) << offset << ": ";
 
-				_out <<
-					std::hex <<
-					std::setw(2) <<
-					std::setfill('0') <<
-					static_cast<int>(calldata[offset]);
+				_out << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(calldata[offset]);
 			}
 
 		_out << endl;
@@ -103,8 +94,7 @@ void Interpreter::run(
 	Dialect const& _dialect,
 	Block const& _ast,
 	bool _disableExternalCalls,
-	bool _disableMemoryTrace
-)
+	bool _disableMemoryTrace)
 {
 	Scope scope;
 	Interpreter{_state, _dialect, scope, _disableExternalCalls, _disableMemoryTrace}(_ast);
@@ -165,16 +155,14 @@ void Interpreter::operator()(Switch const& _switch)
 		}
 }
 
-void Interpreter::operator()(FunctionDefinition const&)
-{
-}
+void Interpreter::operator()(FunctionDefinition const&) {}
 
 void Interpreter::operator()(ForLoop const& _forLoop)
 {
 	solAssert(_forLoop.condition, "");
 
 	enterScope(_forLoop.pre);
-	ScopeGuard g([this]{ leaveScope(); });
+	ScopeGuard g([this] { leaveScope(); });
 
 	for (auto const& statement: _forLoop.pre.statements)
 	{
@@ -203,20 +191,11 @@ void Interpreter::operator()(ForLoop const& _forLoop)
 		m_state.controlFlowState = ControlFlowState::Default;
 }
 
-void Interpreter::operator()(Break const&)
-{
-	m_state.controlFlowState = ControlFlowState::Break;
-}
+void Interpreter::operator()(Break const&) { m_state.controlFlowState = ControlFlowState::Break; }
 
-void Interpreter::operator()(Continue const&)
-{
-	m_state.controlFlowState = ControlFlowState::Continue;
-}
+void Interpreter::operator()(Continue const&) { m_state.controlFlowState = ControlFlowState::Continue; }
 
-void Interpreter::operator()(Leave const&)
-{
-	m_state.controlFlowState = ControlFlowState::Leave;
-}
+void Interpreter::operator()(Leave const&) { m_state.controlFlowState = ControlFlowState::Leave; }
 
 void Interpreter::operator()(Block const& _block)
 {
@@ -257,11 +236,7 @@ vector<u256> Interpreter::evaluateMulti(Expression const& _expression)
 void Interpreter::enterScope(Block const& _block)
 {
 	if (!m_scope->subScopes.count(&_block))
-		m_scope->subScopes[&_block] = make_unique<Scope>(Scope{
-			{},
-			{},
-			m_scope
-		});
+		m_scope->subScopes[&_block] = make_unique<Scope>(Scope{{}, {}, m_scope});
 	m_scope = m_scope->subScopes[&_block].get();
 }
 
@@ -302,6 +277,7 @@ void ExpressionEvaluator::operator()(Identifier const& _identifier)
 
 void ExpressionEvaluator::operator()(FunctionCall const& _funCall)
 {
+	std::cout << _funCall.functionName.name.str() << std::endl;
 	vector<optional<LiteralKind>> const* literalArguments = nullptr;
 	if (BuiltinFunction const* builtin = m_dialect.builtin(_funCall.functionName.name))
 		if (!builtin->literalArguments.empty())
@@ -316,11 +292,7 @@ void ExpressionEvaluator::operator()(FunctionCall const& _funCall)
 
 			u256 const value = interpreter.evalBuiltin(*fun, _funCall.arguments, values());
 
-			if (
-				!m_disableExternalCalls &&
-				fun->instruction &&
-				evmasm::isCallInstruction(*fun->instruction)
-			)
+			if (!m_disableExternalCalls && fun->instruction && evmasm::isCallInstruction(*fun->instruction))
 				runExternalCall(*fun->instruction);
 
 			setValue(value);
@@ -366,9 +338,7 @@ void ExpressionEvaluator::setValue(u256 _value)
 }
 
 void ExpressionEvaluator::evaluateArgs(
-	vector<Expression> const& _expr,
-	vector<optional<LiteralKind>> const* _literalArguments
-)
+	vector<Expression> const& _expr, vector<optional<LiteralKind>> const* _literalArguments)
 {
 	incrementStep();
 	vector<u256> values;
@@ -418,10 +388,7 @@ void ExpressionEvaluator::runExternalCall(evmasm::Instruction _instruction)
 	u256 memInSize = 0;
 
 	// Setup memOut* values
-	if (
-		_instruction == evmasm::Instruction::CALL ||
-		_instruction == evmasm::Instruction::CALLCODE
-	)
+	if (_instruction == evmasm::Instruction::CALL || _instruction == evmasm::Instruction::CALLCODE)
 	{
 		memOutOffset = values()[5];
 		memOutSize = values()[6];
@@ -429,10 +396,7 @@ void ExpressionEvaluator::runExternalCall(evmasm::Instruction _instruction)
 		memInOffset = values()[3];
 		memInSize = values()[4];
 	}
-	else if (
-		_instruction == evmasm::Instruction::DELEGATECALL ||
-		_instruction == evmasm::Instruction::STATICCALL
-	)
+	else if (_instruction == evmasm::Instruction::DELEGATECALL || _instruction == evmasm::Instruction::STATICCALL)
 	{
 		memOutOffset = values()[4];
 		memOutSize = values()[5];
@@ -490,8 +454,7 @@ void ExpressionEvaluator::runExternalCall(evmasm::Instruction _instruction)
 			newInterpreter->returnData(),
 			memOutOffset.convert_to<size_t>(),
 			0,
-			memOutSize.convert_to<size_t>()
-		);
+			memOutSize.convert_to<size_t>());
 		m_state.returndata = newInterpreter->returnData();
 	}
 }

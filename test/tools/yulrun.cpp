@@ -87,6 +87,7 @@ void interpret(string const& _source, bool _inspect, bool _disableExternalCalls,
 	InterpreterState state;
 	state.calldata = calldata;
 	state.maxTraceSize = 10000;
+	state.callvalue = 0;
 	try
 	{
 		Dialect const& dialect(EVMDialect::strictAssemblyForEVMObjects(langutil::EVMVersion{}));
@@ -124,7 +125,8 @@ Allowed options)",
 		po::options_description::m_default_line_length - 23);
 	options.add_options()("help", "Show this help screen.")("enable-external-calls", "Enable external calls")(
 		"interactive", "Run interactive")("input-file", po::value<vector<string>>(), "input file")(
-		"calldata", po::value<string>(), "Calldata to be passed to the contract function");
+		"calldata", po::value<string>(), "Calldata to be passed to the contract function")(
+		"callvalue", po::value<string>(), "Callvalue to be passed to the transaction");
 	po::positional_options_description filesPositions;
 	filesPositions.add("input-file", -1);
 
