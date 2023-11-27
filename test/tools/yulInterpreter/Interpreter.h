@@ -26,8 +26,8 @@
 
 #include <libevmasm/Instruction.h>
 
-#include <libsolutil/FixedHash.h>
 #include <libsolutil/CommonData.h>
+#include <libsolutil/FixedHash.h>
 
 #include <libsolutil/Exceptions.h>
 
@@ -73,8 +73,20 @@ enum class ControlFlowState
 	Leave
 };
 
+struct BlockchainState
+{
+	util::h160 coinbase = util::h160("0x0000000000000000000000000000000077777777");
+	u256 timestamp = 0x88888888;
+	u256 blockNumber = 1024;
+	u256 difficulty = 0x9999999;
+	u256 gaslimit = 4000000;
+	u256 chainid = 0x01;
+	u256 basefee = 0x07; // The minimum value of basefee: 7 wei.
+};
+
 struct InterpreterState
 {
+	BlockchainState blockchain_state;
 	bytes calldata;
 	bytes returndata;
 	std::map<u256, uint8_t> memory;
@@ -90,15 +102,9 @@ struct InterpreterState
 	/// Deployed code
 	bytes code = util::asBytes("codecodecodecodecode");
 	u256 gasprice = 0x66666666;
-	util::h160 coinbase = util::h160("0x0000000000000000000000000000000077777777");
-	u256 timestamp = 0x88888888;
-	u256 blockNumber = 1024;
-	u256 difficulty = 0x9999999;
+
 	u256 prevrandao = (u256(1) << 64) + 1;
-	u256 gaslimit = 4000000;
-	u256 chainid = 0x01;
-	/// The minimum value of basefee: 7 wei.
-	u256 basefee = 0x07;
+
 	/// Log of changes / effects. Sholud be structured data in the future.
 	std::vector<std::string> trace;
 	/// This is actually an input parameter that more or less limits the runtime.
@@ -150,13 +156,12 @@ public:
 	/// instructions that write to memory do not affect @param _state. This
 	/// avoids false positives reports by the fuzzer when certain optimizer steps are
 	/// activated e.g., Redundant store eliminator, Equal store eliminator.
-	static void run(
-		InterpreterState& _state,
+	static void
+	run(InterpreterState& _state,
 		Dialect const& _dialect,
 		Block const& _ast,
 		bool _disableExternalCalls,
-		bool _disableMemoryTracing
-	);
+		bool _disableMemoryTracing);
 
 	Interpreter(
 		InterpreterState& _state,
@@ -164,14 +169,9 @@ public:
 		Scope& _scope,
 		bool _disableExternalCalls,
 		bool _disableMemoryTracing,
-		std::map<YulString, u256> _variables = {}
-	):
-		m_dialect(_dialect),
-		m_state(_state),
-		m_variables(std::move(_variables)),
-		m_scope(&_scope),
-		m_disableExternalCalls(_disableExternalCalls),
-		m_disableMemoryTrace(_disableMemoryTracing)
+		std::map<YulString, u256> _variables = {})
+		: m_dialect(_dialect), m_state(_state), m_variables(std::move(_variables)), m_scope(&_scope),
+		  m_disableExternalCalls(_disableExternalCalls), m_disableMemoryTrace(_disableMemoryTracing)
 	{
 	}
 
@@ -228,15 +228,11 @@ public:
 		Scope& _scope,
 		std::map<YulString, u256> const& _variables,
 		bool _disableExternalCalls,
-		bool _disableMemoryTrace
-	):
-		m_state(_state),
-		m_dialect(_dialect),
-		m_variables(_variables),
-		m_scope(_scope),
-		m_disableExternalCalls(_disableExternalCalls),
-		m_disableMemoryTrace(_disableMemoryTrace)
-	{}
+		bool _disableMemoryTrace)
+		: m_state(_state), m_dialect(_dialect), m_variables(_variables), m_scope(_scope),
+		  m_disableExternalCalls(_disableExternalCalls), m_disableMemoryTrace(_disableMemoryTrace)
+	{
+	}
 
 	void operator()(Literal const&) override;
 	void operator()(Identifier const&) override;
@@ -252,23 +248,11 @@ protected:
 	virtual std::unique_ptr<Interpreter> makeInterpreterCopy(std::map<YulString, u256> _variables = {}) const
 	{
 		return std::make_unique<Interpreter>(
-			m_state,
-			m_dialect,
-			m_scope,
-			m_disableExternalCalls,
-			m_disableMemoryTrace,
-			std::move(_variables)
-		);
+			m_state, m_dialect, m_scope, m_disableExternalCalls, m_disableMemoryTrace, std::move(_variables));
 	}
 	virtual std::unique_ptr<Interpreter> makeInterpreterNew(InterpreterState& _state, Scope& _scope) const
 	{
-		return std::make_unique<Interpreter>(
-			_state,
-			m_dialect,
-			_scope,
-			m_disableExternalCalls,
-			m_disableMemoryTrace
-		);
+		return std::make_unique<Interpreter>(_state, m_dialect, _scope, m_disableExternalCalls, m_disableMemoryTrace);
 	}
 
 	void setValue(u256 _value);
@@ -276,9 +260,7 @@ protected:
 	/// Evaluates the given expression from right to left and
 	/// stores it in m_value.
 	void evaluateArgs(
-		std::vector<Expression> const& _expr,
-		std::vector<std::optional<LiteralKind>> const* _literalArguments
-	);
+		std::vector<Expression> const& _expr, std::vector<std::optional<LiteralKind>> const* _literalArguments);
 
 	/// Increment evaluation count, throwing exception if the
 	/// nesting level is beyond the upper bound configured in

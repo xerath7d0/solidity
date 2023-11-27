@@ -23,8 +23,8 @@
 
 #include <test/tools/yulInterpreter/Interpreter.h>
 
-#include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/AST.h>
+#include <libyul/backends/evm/EVMDialect.h>
 
 #include <libevmasm/Instruction.h>
 #include <libevmasm/SemanticInformation.h>
@@ -78,9 +78,7 @@ namespace solidity::yul::test
 /// @a _target at offset @a _targetOffset. Behaves as if @a _source would
 /// continue with an infinite sequence of zero bytes beyond its end.
 void copyZeroExtended(
-	map<u256, uint8_t>& _target, bytes const& _source,
-	size_t _targetOffset, size_t _sourceOffset, size_t _size
-)
+	map<u256, uint8_t>& _target, bytes const& _source, size_t _targetOffset, size_t _sourceOffset, size_t _size)
 {
 	for (size_t i = 0; i < _size; ++i)
 		_target[_targetOffset + i] = _sourceOffset + i < _source.size() ? _source[_sourceOffset + i] : 0;
@@ -88,12 +86,11 @@ void copyZeroExtended(
 
 }
 
-using u512 = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<512, 256, boost::multiprecision::unsigned_magnitude, boost::multiprecision::unchecked, void>>;
+using u512 = boost::multiprecision::number<
+	boost::multiprecision::
+		cpp_int_backend<512, 256, boost::multiprecision::unsigned_magnitude, boost::multiprecision::unchecked, void>>;
 
-u256 EVMInstructionInterpreter::eval(
-	evmasm::Instruction _instruction,
-	vector<u256> const& _arguments
-)
+u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u256> const& _arguments)
 {
 	using namespace solidity::evmasm;
 	using evmasm::Instruction;
@@ -212,28 +209,22 @@ u256 EVMInstructionInterpreter::eval(
 		return m_state.calldata.size();
 	case Instruction::CALLDATACOPY:
 		if (accessMemory(arg[0], arg[2]))
-			copyZeroExtended(
-				m_state.memory, m_state.calldata,
-				size_t(arg[0]), size_t(arg[1]), size_t(arg[2])
-			);
+			copyZeroExtended(m_state.memory, m_state.calldata, size_t(arg[0]), size_t(arg[1]), size_t(arg[2]));
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::CODESIZE:
 		return m_state.code.size();
 	case Instruction::CODECOPY:
 		if (accessMemory(arg[0], arg[2]))
-			copyZeroExtended(
-				m_state.memory, m_state.code,
-				size_t(arg[0]), size_t(arg[1]), size_t(arg[2])
-			);
+			copyZeroExtended(m_state.memory, m_state.code, size_t(arg[0]), size_t(arg[1]), size_t(arg[2]));
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::GASPRICE:
 		return m_state.gasprice;
 	case Instruction::CHAINID:
-		return m_state.chainid;
+		return m_state.blockchain_state.chainid;
 	case Instruction::BASEFEE:
-		return m_state.basefee;
+		return m_state.blockchain_state.basefee;
 	case Instruction::EXTCODESIZE:
 		return u256(keccak256(h256(arg[0]))) & 0xffffff;
 	case Instruction::EXTCODEHASH:
@@ -241,37 +232,32 @@ u256 EVMInstructionInterpreter::eval(
 	case Instruction::EXTCODECOPY:
 		if (accessMemory(arg[1], arg[3]))
 			// TODO this way extcodecopy and codecopy do the same thing.
-			copyZeroExtended(
-				m_state.memory, m_state.code,
-				size_t(arg[1]), size_t(arg[2]), size_t(arg[3])
-			);
+			copyZeroExtended(m_state.memory, m_state.code, size_t(arg[1]), size_t(arg[2]), size_t(arg[3]));
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::RETURNDATASIZE:
 		return m_state.returndata.size();
 	case Instruction::RETURNDATACOPY:
 		if (accessMemory(arg[0], arg[2]))
-			copyZeroExtended(
-				m_state.memory, m_state.returndata,
-				size_t(arg[0]), size_t(arg[1]), size_t(arg[2])
-			);
+			copyZeroExtended(m_state.memory, m_state.returndata, size_t(arg[0]), size_t(arg[1]), size_t(arg[2]));
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::BLOCKHASH:
-		if (arg[0] >= m_state.blockNumber || arg[0] + 256 < m_state.blockNumber)
+		if (arg[0] >= m_state.blockchain_state.blockNumber || arg[0] + 256 < m_state.blockchain_state.blockNumber)
 			return 0;
 		else
-			return 0xaaaaaaaa + (arg[0] - m_state.blockNumber - 256);
+			return 0xaaaaaaaa + (arg[0] - m_state.blockchain_state.blockNumber - 256);
 	case Instruction::COINBASE:
-		return h256(m_state.coinbase, h256::AlignRight);
+		return h256(m_state.blockchain_state.coinbase, h256::AlignRight);
 	case Instruction::TIMESTAMP:
-		return m_state.timestamp;
+		return m_state.blockchain_state.timestamp;
 	case Instruction::NUMBER:
-		return m_state.blockNumber;
+		return m_state.blockchain_state.blockNumber;
 	case Instruction::PREVRANDAO:
-		return (m_evmVersion < langutil::EVMVersion::paris()) ? m_state.difficulty : m_state.prevrandao;
+		return (m_evmVersion < langutil::EVMVersion::paris()) ? m_state.blockchain_state.difficulty
+															  : m_state.prevrandao;
 	case Instruction::GASLIMIT:
-		return m_state.gaslimit;
+		return m_state.blockchain_state.gaslimit;
 	// --------------- memory / storage / logs ---------------
 	case Instruction::MLOAD:
 		accessMemory(arg[0], 0x20);
@@ -337,10 +323,7 @@ u256 EVMInstructionInterpreter::eval(
 		logTrace(_instruction, arg);
 		// Randomly fail based on the called address if it isn't a call to self.
 		// Used for fuzzing.
-		return (
-			(arg[0] > 0) &&
-			(arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))
-		) ? 1 : 0;
+		return ((arg[0] > 0) && (arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))) ? 1 : 0;
 	case Instruction::DELEGATECALL:
 	case Instruction::STATICCALL:
 		accessMemory(arg[2], arg[3]);
@@ -348,10 +331,7 @@ u256 EVMInstructionInterpreter::eval(
 		logTrace(_instruction, arg);
 		// Randomly fail based on the called address if it isn't a call to self.
 		// Used for fuzzing.
-		return (
-			(arg[0] > 0) &&
-			(arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))
-		) ? 1 : 0;
+		return ((arg[0] > 0) && (arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))) ? 1 : 0;
 	case Instruction::RETURN:
 	{
 		m_state.returndata = {};
@@ -456,10 +436,7 @@ u256 EVMInstructionInterpreter::eval(
 }
 
 u256 EVMInstructionInterpreter::evalBuiltin(
-	BuiltinFunctionForEVM const& _fun,
-	vector<Expression> const& _arguments,
-	vector<u256> const& _evaluatedArguments
-)
+	BuiltinFunctionForEVM const& _fun, vector<Expression> const& _arguments, vector<u256> const& _evaluatedArguments)
 {
 	if (_fun.instruction)
 		return eval(*_fun.instruction, _evaluatedArguments);
@@ -484,17 +461,13 @@ u256 EVMInstructionInterpreter::evalBuiltin(
 	else if (fun == "datacopy")
 	{
 		// This is identical to codecopy.
-		if (
-				_evaluatedArguments.at(2) != 0 &&
-				accessMemory(_evaluatedArguments.at(0), _evaluatedArguments.at(2))
-		)
+		if (_evaluatedArguments.at(2) != 0 && accessMemory(_evaluatedArguments.at(0), _evaluatedArguments.at(2)))
 			copyZeroExtended(
 				m_state.memory,
 				m_state.code,
 				size_t(_evaluatedArguments.at(0)),
 				size_t(_evaluatedArguments.at(1) & numeric_limits<size_t>::max()),
-				size_t(_evaluatedArguments.at(2))
-			);
+				size_t(_evaluatedArguments.at(2)));
 		return 0;
 	}
 	else if (fun == "memoryguard")
@@ -545,25 +518,20 @@ void EVMInstructionInterpreter::writeMemoryWord(u256 const& _offset, u256 const&
 
 
 void EVMInstructionInterpreter::logTrace(
-	evmasm::Instruction _instruction,
-	std::vector<u256> const& _arguments,
-	bytes const& _data
-)
+	evmasm::Instruction _instruction, std::vector<u256> const& _arguments, bytes const& _data)
 {
 	logTrace(
 		evmasm::instructionInfo(_instruction, m_evmVersion).name,
 		SemanticInformation::memory(_instruction) == SemanticInformation::Effect::Write,
 		_arguments,
-		_data
-	);
+		_data);
 }
 
 void EVMInstructionInterpreter::logTrace(
 	std::string const& _pseudoInstruction,
 	bool _writesToMemory,
 	std::vector<u256> const& _arguments,
-	bytes const& _data
-)
+	bytes const& _data)
 {
 	if (!(_writesToMemory && memWriteTracingDisabled()))
 	{
@@ -588,9 +556,7 @@ void EVMInstructionInterpreter::logTrace(
 }
 
 std::pair<bool, size_t> EVMInstructionInterpreter::isInputMemoryPtrModified(
-	std::string const& _pseudoInstruction,
-	std::vector<u256> const& _arguments
-)
+	std::string const& _pseudoInstruction, std::vector<u256> const& _arguments)
 {
 	if (_pseudoInstruction == "RETURN" || _pseudoInstruction == "REVERT")
 	{
