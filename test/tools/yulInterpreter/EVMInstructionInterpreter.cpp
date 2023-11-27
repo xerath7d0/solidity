@@ -222,9 +222,9 @@ u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u2
 	case Instruction::GASPRICE:
 		return m_state.gasprice;
 	case Instruction::CHAINID:
-		return m_state.blockchain_state.chainid;
+		return m_state.blockchain_state.chain_id;
 	case Instruction::BASEFEE:
-		return m_state.blockchain_state.basefee;
+		return m_state.blockchain_state.base_fee;
 	case Instruction::EXTCODESIZE:
 		return u256(keccak256(h256(arg[0]))) & 0xffffff;
 	case Instruction::EXTCODEHASH:
@@ -243,16 +243,16 @@ u256 EVMInstructionInterpreter::eval(evmasm::Instruction _instruction, vector<u2
 		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::BLOCKHASH:
-		if (arg[0] >= m_state.blockchain_state.blockNumber || arg[0] + 256 < m_state.blockchain_state.blockNumber)
+		if (arg[0] >= m_state.blockchain_state.block_number || arg[0] + 256 < m_state.blockchain_state.block_number)
 			return 0;
 		else
-			return 0xaaaaaaaa + (arg[0] - m_state.blockchain_state.blockNumber - 256);
+			return 0xaaaaaaaa + (arg[0] - m_state.blockchain_state.block_number - 256);
 	case Instruction::COINBASE:
 		return h256(m_state.blockchain_state.coinbase, h256::AlignRight);
 	case Instruction::TIMESTAMP:
 		return m_state.blockchain_state.timestamp;
 	case Instruction::NUMBER:
-		return m_state.blockchain_state.blockNumber;
+		return m_state.blockchain_state.block_number;
 	case Instruction::PREVRANDAO:
 		return (m_evmVersion < langutil::EVMVersion::paris()) ? m_state.blockchain_state.difficulty
 															  : m_state.prevrandao;

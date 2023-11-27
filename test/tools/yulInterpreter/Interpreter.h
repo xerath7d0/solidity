@@ -77,11 +77,11 @@ struct BlockchainState
 {
 	util::h160 coinbase = util::h160("0x0000000000000000000000000000000077777777");
 	u256 timestamp = 0x88888888;
-	u256 blockNumber = 1024;
+	u256 block_number = 1024;
 	u256 difficulty = 0x9999999;
 	u256 gaslimit = 4000000;
-	u256 chainid = 0x01;
-	u256 basefee = 0x07; // The minimum value of basefee: 7 wei.
+	u256 chain_id = 0x01;
+	u256 base_fee = 0x07; // The minimum value of basefee: 7 wei.
 };
 
 struct InterpreterState
